@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 옷 코디 추천 — 클릭 목업</title>
+<style>
+  :root{
+    --primary:#3D6BFF; --primary-soft:#EAF0FF; --primary-ink:#2547c9;
+    --ink:#1A1D23; --ink-soft:#5B616E;
+    --bg:#FFFFFF; --surface:#F7F8FA; --line:#E6E8EC;
+    --success:#12875A; --success-soft:#E6F6EE;
+    --danger:#C53030; --danger-soft:#FDEAEA;
+    --warning:#B7791F; --warning-soft:#FDF3DF;
+    --shadow: 0 24px 60px rgba(20,22,30,0.35);
+    --page-bg:#eef0f4;
+  }
+  [data-theme="dark"]{
+    --primary:#7C9CFF; --primary-soft:rgba(124,156,255,0.16); --primary-ink:#c3d1ff;
+    --ink:#F3F5F8; --ink-soft:#A6ADBB;
+    --bg:#15171C; --surface:#1D2027; --line:#2B2F38;
+    --success:#3DDC97; --success-soft:rgba(61,220,151,0.14);
+    --danger:#FF6B6B; --danger-soft:rgba(255,107,107,0.14);
+    --warning:#F0B93E; --warning-soft:rgba(240,185,62,0.14);
+    --shadow: 0 24px 60px rgba(0,0,0,0.55);
+    --page-bg:#0b0c10;
+  }
+  *{box-sizing:border-box;}
+  html,body{ margin:0; padding:0; }
+  svg{ width:16px; height:16px; flex:0 0 auto; }
+  body{
+    min-height:100vh; background:var(--page-bg);
+    font-family:"Pretendard","Apple SD Gothic Neo","Malgun Gothic",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    color:var(--ink);
+    display:flex; flex-direction:column; align-items:center; gap:18px;
+    padding:28px 16px 60px;
+    transition:background .25s ease;
+  }
+  .top-row{ width:100%; max-width:920px; display:flex; align-items:center; justify-content:space-between; }
+  .brand{ display:flex; align-items:center; gap:10px; color:#cfd4e6; font-weight:700; font-size:14px; }
+  [data-theme="dark"] .brand{ color:#cfd4e6; }
+  body:not([data-theme="dark"]) .brand{ color:#3a3f4d; }
+  .brand .dot{ width:8px; height:8px; border-radius:50%; background:var(--primary); }
+  .theme-btn{
+    display:flex; align-items:center; gap:8px; background:var(--surface); color:var(--ink);
+    border:1px solid var(--line); border-radius:999px; padding:8px 14px; font-size:13px; font-weight:700;
+    cursor:pointer;
+  }
+  .theme-btn svg{ width:16px; height:16px; }
+  .layout{ display:flex; gap:28px; align-items:flex-start; flex-wrap:wrap; justify-content:center; }
+
+  /* ---- 폰 프레임 ---- */
+  .phone{
+    width:390px; height:790px; background:var(--bg); border-radius:44px;
+    box-shadow:var(--shadow); position:relative; overflow:hidden;
+    border:10px solid #0b0c10;
+    display:flex; flex-direction:column;
+    transition:background .25s ease;
+  }
+  .notch{
+    position:absolute; top:0; left:50%; transform:translateX(-50%);
+    width:120px; height:22px; background:#0b0c10; border-radius:0 0 16px 16px; z-index:5;
+  }
+  .statusbar{
+    height:34px; flex:0 0 auto; display:flex; align-items:center; justify-content:space-between;
+    padding:0 22px; font-size:12px; font-weight:700; color:var(--ink-soft);
+  }
+  .topbar{
+    flex:0 0 auto; padding:2px 18px 12px; display:flex; align-items:center; gap:10px;
+    border-bottom:1px solid var(--line);
+  }
+  .topbar .back{
+    width:32px; height:32px; border-radius:50%; background:var(--surface); border:none; color:var(--ink);
+    display:flex; align-items:center; justify-content:center; cursor:pointer; flex:0 0 auto;
+  }
+  .topbar .back svg{ width:16px; height:16px; }
+  .topbar .titles{ flex:1; min-width:0; }
+  .topbar .scode{
+    font-size:10px; font-weight:800; color:var(--primary); letter-spacing:.04em;
+    background:var(--primary-soft); display:inline-block; padding:1px 7px; border-radius:6px; margin-bottom:2px;
+  }
+  .topbar h1{ margin:0; font-size:17px; font-weight:800; }
+
+  .screen{ flex:1; min-height:0; overflow-y:auto; padding:16px 18px 20px; }
+  .screen::-webkit-scrollbar{ width:0; }
+
+  .tabbar{
+    flex:0 0 auto; display:flex; border-top:1px solid var(--line); background:var(--bg);
+    padding:8px 6px calc(14px + env(safe-area-inset-bottom,0px));
+  }
+  .tabbar button{
+    flex:1; background:none; border:none; display:flex; flex-direction:column; align-items:center; gap:4px;
+    color:var(--ink-soft); font-size:11px; font-weight:700; cursor:pointer; padding:4px 0;
+  }
+  .tabbar button svg{ width:22px; height:22px; }
+  .tabbar button.active{ color:var(--primary); }
+
+  h2.section{ font-size:13px; font-weight:800; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.04em; margin:18px 0 10px; }
+  h2.section:first-child{ margin-top:0; }
+
+  /* ---- 공통 부품 ---- */
+  .card{ background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:14px; }
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:6px;
+    border:none; border-radius:12px; font-weight:800; font-size:14px; cursor:pointer;
+    height:46px; padding:0 16px; width:100%;
+  }
+  .btn svg{ width:16px; height:16px; }
+  .btn-primary{ background:var(--primary); color:#fff; }
+  .btn-secondary{ background:var(--primary-soft); color:var(--primary); }
+  .btn-text{ background:none; color:var(--primary); height:auto; padding:6px 4px; width:auto; }
+  .btn-danger{ background:var(--danger-soft); color:var(--danger); }
+  .btn-row{ display:flex; gap:8px; }
+  .btn-row .btn{ flex:1; }
+
+  .chip-row{ display:flex; gap:8px; flex-wrap:wrap; }
+  .chip{
+    border:1px solid var(--line); background:var(--bg); color:var(--ink);
+    border-radius:999px; padding:8px 14px; font-size:13px; font-weight:700; cursor:pointer;
+  }
+  .chip.selected{ background:var(--primary-soft); border-color:var(--primary); color:var(--primary); }
+
+  .field-label{ font-size:12px; font-weight:800; color:var(--ink-soft); margin:14px 0 8px; }
+  .field-label:first-child{ margin-top:0; }
+
+  .badge{ display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:800; padding:3px 9px; border-radius:999px; }
+  .badge.success{ background:var(--success-soft); color:var(--success); }
+  .badge.danger{ background:var(--danger-soft); color:var(--danger); }
+  .badge.warning{ background:var(--warning-soft); color:var(--warning); }
+
+  .icon-circle{
+    width:44px; height:44px; border-radius:50%; background:var(--primary-soft); color:var(--primary);
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  }
+  .icon-circle svg{ width:22px; height:22px; }
+  .icon-circle.lg{ width:64px; height:64px; }
+  .icon-circle.lg svg{ width:30px; height:30px; }
+
+  .empty-state{ text-align:center; padding:40px 10px; color:var(--ink-soft); }
+  .empty-state .icon-circle{ margin:0 auto 14px; }
+  .empty-state p{ font-size:14px; margin:0 0 16px; }
+
+  /* ---- 홈: 날씨 카드 ---- */
+  .weather-card{
+    background:var(--primary); color:#fff; border-radius:16px; padding:16px 18px;
+    display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;
+  }
+  .weather-card > div{ width:100%; }
+  .weather-card .temp{ font-size:26px; font-weight:900; }
+  .weather-card .desc{ font-size:12px; opacity:.85; margin-top:2px; }
+  .weather-card .region{
+    display:flex; align-items:center; gap:5px; font-size:12px; font-weight:800; opacity:.95; margin-bottom:6px;
+  }
+  .weather-card .region svg{ width:14px; height:14px; }
+  .weather-card button{
+    background:rgba(255,255,255,.18); border:none; color:#fff; border-radius:999px;
+    padding:7px 12px; font-size:11px; font-weight:800; cursor:pointer; display:flex; align-items:center; gap:5px;
+  }
+  .rain-hours{ display:flex; gap:6px; flex-wrap:wrap; margin-top:10px; }
+  .rain-chip{
+    background:rgba(255,255,255,.22); color:#fff; font-size:12px; font-weight:800;
+    padding:4px 10px; border-radius:999px;
+  }
+  .schedule-strip{
+    display:flex; align-items:center; justify-content:space-between; background:var(--surface);
+    border:1px solid var(--line); border-radius:12px; padding:10px 12px; margin-bottom:16px; font-size:13px;
+  }
+  .schedule-strip b{ font-weight:800; }
+  .schedule-strip button{ background:none; border:none; color:var(--primary); font-weight:800; font-size:12px; cursor:pointer; }
+
+  .outfit-card{
+    border:1px solid var(--line); border-radius:16px; padding:14px; margin-bottom:12px; background:var(--bg);
+  }
+  .outfit-thumbs{ display:flex; gap:8px; margin-bottom:10px; }
+  .thumb{
+    flex:1; aspect-ratio:1; border-radius:12px; display:flex; align-items:center; justify-content:center;
+    color:#fff;
+  }
+  .thumb svg{ width:34%; height:34%; }
+  .outfit-caption{ font-size:12px; color:var(--ink-soft); margin-bottom:8px; }
+  .why-chips{ display:flex; flex-wrap:wrap; gap:5px; margin-bottom:10px; }
+  .why-chip{ font-size:11px; font-weight:700; padding:3px 8px; border-radius:999px; background:var(--primary-soft); color:var(--primary-ink); }
+  .why-chip.warn{ background:var(--danger-soft); color:var(--danger); }
+  .score-note{ font-size:11px; color:var(--ink-soft); margin:-8px 0 14px; }
+  .day-note{ font-size:12px; color:var(--ink-soft); margin:0 0 8px; }
+  .outfit-actions{ display:flex; gap:8px; }
+  .reaction-btn{
+    flex:1; border:1px solid var(--line); background:var(--bg); border-radius:10px; height:38px;
+    font-size:12px; font-weight:800; color:var(--ink-soft); cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px;
+  }
+  .reaction-btn svg{ width:15px; height:15px; }
+  .reaction-btn.on-like{ background:var(--success-soft); color:var(--success); border-color:transparent; }
+  .reaction-btn.on-dislike{ background:var(--danger-soft); color:var(--danger); border-color:transparent; }
+  .reaction-thanks{
+    flex:1; border-radius:10px; height:38px; background:var(--success-soft); color:var(--success);
+    font-size:12px; font-weight:800; display:flex; align-items:center; justify-content:center; gap:6px;
+  }
+  .reaction-thanks svg{ width:15px; height:15px; }
+
+  /* ---- 옷장 목록 ---- */
+  .filter-row{ display:flex; gap:8px; overflow-x:auto; margin-bottom:14px; }
+  .closet-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:12px; }
+  .item-card{ border:1px solid var(--line); border-radius:14px; padding:10px; cursor:pointer; background:var(--bg); }
+  .item-thumb{
+    width:100%; aspect-ratio:1; border-radius:10px; display:flex; align-items:center; justify-content:center;
+    color:#fff; margin-bottom:8px;
+  }
+  .item-thumb svg{ width:36%; height:36%; }
+  .item-name{ font-size:13px; font-weight:800; }
+  .item-meta{ font-size:11px; color:var(--ink-soft); margin-top:2px; }
+
+  /* ---- 옷 등록/수정 폼 ---- */
+  .photo-box{
+    width:120px; height:120px; border-radius:16px; border:2px dashed var(--line); margin:0 auto 6px;
+    display:flex; align-items:center; justify-content:center; color:var(--ink-soft); cursor:pointer; position:relative; overflow:hidden;
+  }
+  .photo-box.filled{ border-style:solid; color:#fff; }
+  .photo-box svg{ width:30%; height:30%; }
+  .form-error{
+    background:var(--danger-soft); color:var(--danger); font-size:12px; font-weight:700;
+    border-radius:10px; padding:9px 12px; margin:10px 0; display:flex; gap:6px; align-items:flex-start;
+  }
+  .form-error svg{ width:14px; height:14px; flex:0 0 auto; margin-top:1px; }
+
+  /* ---- 코디 상세 ---- */
+  .detail-thumbs{ display:flex; gap:10px; margin-bottom:14px; }
+  .detail-thumb{ flex:1; aspect-ratio:3/4; border-radius:16px; display:flex; align-items:center; justify-content:center; color:#fff; }
+  .detail-thumb svg{ width:32%; height:32%; }
+  .reason-box{
+    background:var(--primary-soft); color:var(--primary-ink); border-radius:12px; padding:12px 14px; font-size:13px; font-weight:600;
+    margin-bottom:16px; display:flex; gap:8px;
+  }
+  .reason-box svg{ width:16px; height:16px; flex:0 0 auto; margin-top:1px; }
+
+  /* ---- 설정 ---- */
+  .setting-row{
+    display:flex; align-items:center; justify-content:space-between; padding:13px 2px; border-bottom:1px solid var(--line);
+    font-size:14px;
+  }
+  .setting-row:last-child{ border-bottom:none; }
+  .setting-row .label{ display:flex; align-items:center; gap:10px; font-weight:700; }
+  .switch{ width:44px; height:26px; border-radius:999px; background:var(--line); position:relative; cursor:pointer; flex:0 0 auto; }
+  .switch.on{ background:var(--primary); }
+  .switch .knob{ position:absolute; top:3px; left:3px; width:20px; height:20px; border-radius:50%; background:#fff; transition:left .15s ease; }
+  .switch.on .knob{ left:21px; }
+
+  small.hint{ display:block; margin-top:10px; font-size:11.5px; color:var(--ink-soft); text-align:center; }
+</style>
+</head>
+<body>
+
+<!-- 아이콘 심볼 -->
+<svg width="0" height="0" style="position:absolute">
+<defs>
+<symbol id="i-home" viewBox="0 0 100 100"><path d="M14 46 L50 14 L86 46 V86 H62 V60 H38 V86 H14 Z" fill="none" stroke="currentColor" stroke-width="7" stroke-linejoin="round" stroke-linecap="round"/></symbol>
+<symbol id="i-shirt" viewBox="0 0 100 100"><path d="M35 16 L50 26 L65 16 L86 30 L76 46 L66 40 L66 88 L34 88 L34 40 L24 46 L14 30 Z" fill="none" stroke="currentColor" stroke-width="7" stroke-linejoin="round" stroke-linecap="round"/></symbol>
+<symbol id="i-settings" viewBox="0 0 100 100"><g stroke="currentColor" stroke-width="7" stroke-linecap="round"><line x1="16" y1="30" x2="84" y2="30"/><line x1="16" y1="52" x2="84" y2="52"/><line x1="16" y1="74" x2="84" y2="74"/></g><circle cx="38" cy="30" r="8" fill="var(--bg,#fff)" stroke="currentColor" stroke-width="7"/><circle cx="66" cy="52" r="8" fill="var(--bg,#fff)" stroke="currentColor" stroke-width="7"/><circle cx="46" cy="74" r="8" fill="var(--bg,#fff)" stroke="currentColor" stroke-width="7"/></symbol>
+<symbol id="i-back" viewBox="0 0 100 100"><path d="M62 18 L30 50 L62 82" fill="none" stroke="currentColor" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-plus" viewBox="0 0 100 100"><line x1="50" y1="16" x2="50" y2="84" stroke="currentColor" stroke-width="9" stroke-linecap="round"/><line x1="16" y1="50" x2="84" y2="50" stroke="currentColor" stroke-width="9" stroke-linecap="round"/></symbol>
+<symbol id="i-trash" viewBox="0 0 100 100"><path d="M20 28 H80 M38 28 V18 H62 V28 M28 28 L32 86 H68 L72 28" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-camera" viewBox="0 0 100 100"><path d="M14 34 H32 L40 22 H60 L68 34 H86 V80 H14 Z" fill="none" stroke="currentColor" stroke-width="7" stroke-linejoin="round"/><circle cx="50" cy="56" r="16" fill="none" stroke="currentColor" stroke-width="7"/></symbol>
+<symbol id="i-weather" viewBox="0 0 100 100"><circle cx="34" cy="30" r="13" fill="currentColor" opacity="0.4"/><g stroke="currentColor" stroke-width="5" stroke-linecap="round"><line x1="34" y1="6" x2="34" y2="12"/><line x1="12" y1="30" x2="18" y2="30"/><line x1="17" y1="13" x2="21" y2="17"/></g><path d="M28 76 Q18 76 18 65 Q18 55 29 55 Q31 44 44 44 Q57 44 59 56 Q71 57 71 68 Q71 76 61 76 Z" fill="#fff" fill-opacity=".18" stroke="currentColor" stroke-width="6" stroke-linejoin="round"/></symbol>
+<symbol id="i-calendar" viewBox="0 0 100 100"><rect x="14" y="20" width="72" height="66" rx="8" stroke="currentColor" stroke-width="7" fill="none"/><line x1="14" y1="40" x2="86" y2="40" stroke="currentColor" stroke-width="7"/><line x1="32" y1="10" x2="32" y2="26" stroke="currentColor" stroke-width="7" stroke-linecap="round"/><line x1="68" y1="10" x2="68" y2="26" stroke="currentColor" stroke-width="7" stroke-linecap="round"/></symbol>
+<symbol id="i-check" viewBox="0 0 100 100"><path d="M18 52 L40 74 L84 26" fill="none" stroke="currentColor" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-x" viewBox="0 0 100 100"><line x1="22" y1="22" x2="78" y2="78" stroke="currentColor" stroke-width="9" stroke-linecap="round"/><line x1="78" y1="22" x2="22" y2="78" stroke="currentColor" stroke-width="9" stroke-linecap="round"/></symbol>
+<symbol id="i-heart" viewBox="0 0 100 100"><path d="M50 86 C20 64 10 46 10 30 C10 16 22 8 34 8 C42 8 48 12 50 20 C52 12 58 8 66 8 C78 8 90 16 90 30 C90 46 80 64 50 86 Z" fill="none" stroke="currentColor" stroke-width="7" stroke-linejoin="round"/></symbol>
+<symbol id="i-alert" viewBox="0 0 100 100"><path d="M50 14 L90 82 H10 Z" fill="none" stroke="currentColor" stroke-width="7" stroke-linejoin="round"/><line x1="50" y1="40" x2="50" y2="60" stroke="currentColor" stroke-width="7" stroke-linecap="round"/><circle cx="50" cy="70" r="3.5" fill="currentColor"/></symbol>
+<symbol id="i-refresh" viewBox="0 0 100 100"><path d="M20 50 A30 30 0 1 1 30 71" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round"/><path d="M14 62 L20 78 L36 74" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-sun" viewBox="0 0 100 100"><circle cx="50" cy="50" r="20" fill="none" stroke="currentColor" stroke-width="7"/><g stroke="currentColor" stroke-width="7" stroke-linecap="round"><line x1="50" y1="8" x2="50" y2="18"/><line x1="50" y1="82" x2="50" y2="92"/><line x1="8" y1="50" x2="18" y2="50"/><line x1="82" y1="50" x2="92" y2="50"/><line x1="21" y1="21" x2="28" y2="28"/><line x1="72" y1="72" x2="79" y2="79"/><line x1="79" y1="21" x2="72" y2="28"/><line x1="28" y1="72" x2="21" y2="79"/></g></symbol>
+<symbol id="i-moon" viewBox="0 0 100 100"><path d="M70 15 A38 38 0 1 0 85 65 A30 30 0 0 1 70 15 Z" fill="currentColor"/></symbol>
+<symbol id="i-map" viewBox="0 0 100 100"><path d="M50 10 C68 10 82 24 82 42 C82 64 50 90 50 90 C50 90 18 64 18 42 C18 24 32 10 50 10 Z" fill="none" stroke="currentColor" stroke-width="7" stroke-linejoin="round"/><circle cx="50" cy="42" r="12" fill="none" stroke="currentColor" stroke-width="7"/></symbol>
+<symbol id="i-user" viewBox="0 0 100 100"><circle cx="50" cy="32" r="17" fill="none" stroke="currentColor" stroke-width="7"/><path d="M18 88 Q18 58 50 58 Q82 58 82 88" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round"/></symbol>
+<symbol id="i-bell" viewBox="0 0 100 100"><path d="M28 70 V46 C28 30 38 20 50 20 C62 20 72 30 72 46 V70 L80 78 H20 Z" fill="none" stroke="currentColor" stroke-width="7" stroke-linejoin="round"/><path d="M42 84 Q50 92 58 84" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round"/></symbol>
+<symbol id="i-logout" viewBox="0 0 100 100"><path d="M46 18 H24 V82 H46" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/><path d="M56 32 L80 50 L56 68 M78 50 H40" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+</defs>
+</svg>
+
+<div class="top-row">
+  <div class="brand"><span class="dot"></span>AI 옷 코디 추천 — 클릭 목업 (mockup/index.html)</div>
+  <button class="theme-btn" onclick="App.toggleTheme()">
+    <svg id="theme-icon"><use href="#i-moon"/></svg>
+    <span id="theme-label">다크 모드로 보기</span>
+  </button>
+</div>
+
+<div class="layout">
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="statusbar"><span>9:41</span><span>●●● 100%</span></div>
+    <div id="screen-root" style="flex:1; min-height:0; display:flex; flex-direction:column;"></div>
+  </div>
+</div>
+<small class="hint">화면 속 버튼을 눌러보세요 · 하단 탭(홈·옷장·설정)으로 주요 화면을, 카드를 눌러 세부 화면(코디 상세·옷 등록·일정 입력)으로 이동합니다.</small>
+
+<script>
+(function(){
+  const COLORS = {
+    화이트:'#c8ccd6', 블랙:'#333640', 블루:'#3d6bff', 베이지:'#c9a97e', 그레이:'#7c8393', 네이비:'#25325c'
+  };
+  const state = {
+    theme:'light',
+    route:'home',
+    editingId:null,
+    outfitIndex:0,
+    feedback:{},
+    saveFailArmed:false,
+    saveFailShown:false,
+    schedule:'학교',
+    formError:null,
+    draft:null,
+    region:'순천시',
+    day:1,          // 데모용 "오늘이 며칠째인지" (반복 방지 시연용)
+    history:[],     // 지난 날들의 추천·반응 기록 (착용 이력 역할)
+    weather:{ status:'idle', temp:null, cond:null, code:null, fetchedAt:null, isStale:false, minTemp:null, maxTemp:null, rainHours:[] },
+  };
+  // 날씨 기준 지역 후보 (S-06에서 선택). 기본값은 순천시
+  const REGIONS = [
+    {name:'순천시', lat:34.9506, lon:127.4872},
+    {name:'서울특별시', lat:37.5665, lon:126.9780},
+    {name:'부산광역시', lat:35.1796, lon:129.0756},
+    {name:'대구광역시', lat:35.8714, lon:128.6014},
+    {name:'광주광역시', lat:35.1595, lon:126.8526},
+    {name:'대전광역시', lat:36.3504, lon:127.3845},
+    {name:'제주시', lat:33.4996, lon:126.5312},
+  ];
+  function currentRegion(){
+    return REGIONS.find(r=>r.name===state.region) || REGIONS[0];
+  }
+  function weatherTip(temp, cond){
+    let tip;
+    if(temp>=28) tip = '반팔·얇은 옷이 좋아요';
+    else if(temp>=22) tip = '반팔이나 얇은 긴팔이 좋아요';
+    else if(temp>=15) tip = '얇은 아우터를 챙기면 좋아요';
+    else if(temp>=5) tip = '겉옷을 꼭 챙기세요';
+    else tip = '두꺼운 겉옷과 방한 준비가 필요해요';
+    if(/비|눈|소나기/.test(cond)) tip += ' · 우산을 챙기세요';
+    return tip;
+  }
+  const RAIN_CODES = [51,53,55,56,57,61,63,65,66,67,80,81,82,95,96,99];
+  function rainHoursFrom(hourly){
+    if(!hourly || !hourly.time) return [];
+    const hours = [];
+    hourly.time.forEach((t, i)=>{
+      const prob = hourly.precipitation_probability ? hourly.precipitation_probability[i] : 0;
+      const code = hourly.weathercode ? hourly.weathercode[i] : null;
+      if((prob!=null && prob>=50) || RAIN_CODES.includes(code)){
+        hours.push(Number(t.slice(11,13)));
+      }
+    });
+    return [...new Set(hours)].sort((a,b)=>a-b).slice(0,6);
+  }
+  function weatherLabel(code){
+    if(code===0) return '맑음';
+    if(code===1) return '대체로 맑음';
+    if(code===2) return '구름 조금';
+    if(code===3) return '흐림';
+    if([45,48].includes(code)) return '안개';
+    if([51,53,55,56,57].includes(code)) return '이슬비';
+    if([61,63,65,66,67].includes(code)) return '비';
+    if([71,73,75,77].includes(code)) return '눈';
+    if([80,81,82].includes(code)) return '소나기';
+    if([85,86].includes(code)) return '소나기(눈)';
+    if([95,96,99].includes(code)) return '뇌우';
+    return '알 수 없음';
+  }
+  function fmtTime(d){
+    return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
+  }
+  let closet = [];
+  function sampleCloset(){
+    return [
+      {id:1, name:'반팔 티셔츠', category:'상의', subtype:'반팔', color:'화이트', thickness:'얇음', formality:'캐주얼'},
+      {id:2, name:'니트', category:'상의', subtype:'긴팔', color:'그레이', thickness:'보통', formality:'캐주얼'},
+      {id:3, name:'청바지', category:'하의', subtype:'긴바지', color:'블루', thickness:'보통', formality:'캐주얼'},
+      {id:4, name:'슬랙스', category:'하의', subtype:'긴바지', color:'베이지', thickness:'보통', formality:'포멀'},
+      {id:5, name:'바람막이', category:'아우터', color:'네이비', thickness:'얇음', formality:'캐주얼'},
+      {id:6, name:'셔츠', category:'상의', subtype:'긴팔', color:'블루', thickness:'얇음', formality:'포멀'},
+      {id:7, name:'맨투맨', category:'상의', subtype:'긴팔', color:'네이비', thickness:'보통', formality:'캐주얼'},
+      {id:8, name:'후드티', category:'상의', subtype:'긴팔', color:'그레이', thickness:'두꺼움', formality:'캐주얼'},
+      {id:9, name:'폴로 티셔츠', category:'상의', subtype:'반팔', color:'블랙', thickness:'얇음', formality:'보통'},
+      {id:10, name:'반바지', category:'하의', subtype:'반바지', color:'베이지', thickness:'얇음', formality:'캐주얼'},
+      {id:11, name:'검정 슬랙스', category:'하의', subtype:'긴바지', color:'블랙', thickness:'보통', formality:'포멀'},
+      {id:12, name:'트레이닝 팬츠', category:'하의', subtype:'긴바지', color:'그레이', thickness:'보통', formality:'캐주얼'},
+      {id:13, name:'가디건', category:'아우터', color:'베이지', thickness:'얇음', formality:'보통'},
+      {id:14, name:'청자켓', category:'아우터', color:'블루', thickness:'보통', formality:'캐주얼'},
+      {id:15, name:'코트', category:'아우터', color:'블랙', thickness:'두꺼움', formality:'포멀'},
+      {id:16, name:'패딩', category:'아우터', color:'네이비', thickness:'두꺼움', formality:'캐주얼'},
+      {id:17, name:'운동화', category:'신발', color:'화이트', thickness:'보통', formality:'캐주얼'},
+      {id:18, name:'로퍼', category:'신발', color:'블랙', thickness:'보통', formality:'포멀'},
+      {id:19, name:'반팔 셔츠', category:'상의', subtype:'반팔', color:'화이트', thickness:'얇음', formality:'포멀'},
+      {id:20, name:'라운드 티셔츠', category:'상의', subtype:'반팔', color:'그레이', thickness:'얇음', formality:'캐주얼'},
+    ];
+  }
+  closet = sampleCloset();
+  let nextId = 21;
+
+  function esc(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function thumb(cls, item, big){
+    const c = COLORS[item.color] || '#8a8f9c';
+    return `<div class="${cls}" style="background:${c}"><svg><use href="#i-shirt"/></svg></div>`;
+  }
+  // ===== 추천 엔진 (규칙 기반 점수 방식) — 03_기능명세서 FR-02/03/04/05 규칙 구현 =====
+  const NEUTRAL_COLORS = ['화이트','블랙','그레이','네이비','베이지'];   // FR-02 색상 규칙: 뉴트럴 그룹
+  const COLOR_PAIR_ALLOW = [];            // 규칙 4: 포인트+포인트 예외 허용 목록 (예: ['카키','브라운']). 지금은 비어 있음
+  const THICK = {'얇음':0, '보통':1, '두꺼움':2};
+  const FORMAL = {'캐주얼':0, '보통':1, '포멀':2};
+  // FR-04: 일정별 어울리는 격식(포멀도) 범위 (0=캐주얼, 1=보통, 2=포멀 의 평균값)
+  const SCHEDULE_FORMALITY = {
+    '학교':[0, 1], '약속':[1.5, 2], '운동':[0, 0.5], '재택':[0, 0.5]
+  };
+  const SCHEDULE_LABEL = {'학교':'편한 옷', '약속':'단정한 옷', '운동':'활동하기 편한 옷', '재택':'편한 옷'};
+
+  function isRainy(w){ return (w.rainHours && w.rainHours.length>0) || /비|눈|소나기|뇌우/.test(w.cond||''); }
+  function needsOuter(w){
+    const diff = (w.maxTemp!=null && w.minTemp!=null) ? (w.maxTemp - w.minTemp) : 0;
+    if(w.temp < 15) return {need:true, why:'쌀쌀해서 겉옷'};
+    if(isRainy(w)) return {need:true, why:'비 예보 · 겉옷'};
+    if(diff >= 10 && w.minTemp < 16) return {need:true, diff:true, why:'일교차 큼! 겉옷을 챙기세요.'};
+    return {need:false, why:'겉옷 없이 OK'};
+  }
+  function colorInfo(items){
+    const points = [...new Set(items.filter(i=>!NEUTRAL_COLORS.includes(i.color)).map(i=>i.color))];
+    if(points.length===0) return {score:2, label:'뉴트럴 조합', excluded:false};          // 규칙 1
+    if(points.length===1) return {score:1, label:`포인트 ${points[0]} 1개`, excluded:false}; // 규칙 2
+    const allowed = COLOR_PAIR_ALLOW.some(p => points.every(c=>p.includes(c)));        // 규칙 4
+    if(allowed) return {score:0, label:'허용된 색 조합', excluded:false};
+    return {score:-3, label:'포인트 색 2개 이상', excluded:true};                       // 규칙 3
+  }
+  function recentHistory(){ return state.history.filter(h => { const d = state.day - h.day; return d>=1 && d<=3; }); }
+
+  function scoreCombo(top, bottom, outer, ctx){
+    const w = ctx.w, t = w.temp;
+    let s = 0;
+    const flags = [];
+    // (1) 날씨: 반팔/긴팔, 반바지/긴바지
+    if(t >= 23){ s += top.subtype==='반팔' ? 2 : -1; }
+    else if(t <= 17){ s += top.subtype==='긴팔' ? 2 : -4; }
+    if(bottom.subtype==='반바지'){ s += (t>=24 ? 1.5 : (t>=20 ? 0 : -6)); }
+    else if(bottom.subtype==='긴바지'){ s += (t>=27 ? -1 : 0.5); }
+    // (2) 날씨: 두께감
+    const topTarget = t>=22 ? 0 : (t>=8 ? 1 : 1.5);
+    s -= Math.abs((THICK[top.thickness]??1) - topTarget) * 1.5;
+    if(outer){
+      const outerTarget = t<8 ? 2 : (t<16 ? 1 : 0);
+      s -= Math.abs((THICK[outer.thickness]??1) - outerTarget) * 1.5;
+    }
+    // (3) 일정: 격식(포멀도) 일치
+    const items = outer ? [top,bottom,outer] : [top,bottom];
+    const avgF = items.reduce((a,i)=>a+(FORMAL[i.formality]??1),0) / items.length;
+    const range = SCHEDULE_FORMALITY[state.schedule];
+    if(range){
+      const dist = avgF < range[0] ? range[0]-avgF : (avgF > range[1] ? avgF-range[1] : 0);
+      s -= dist * 4;
+      if(dist===0) s += 1;
+    }
+    // (4) 색상 매칭
+    const ci = colorInfo(items);
+    s += ci.score;
+    if(ci.excluded) flags.push('color');
+    // (5) 착용 이력: 반복 방지
+    const recent = recentHistory();
+    const key = `${top.id}-${bottom.id}-${outer?outer.id:0}`;
+    if(recent.some(h=>h.key===key)){ s -= 100; flags.push('repeat'); }   // 3일 이내 같은 코디 금지
+    const ids = items.map(i=>i.id);
+    const yTop = state.history.find(h=>h.day===state.day-1 && h.rank===0);
+    if(yTop){ const yIds = yTop.key.split('-').map(Number); s -= 1.5 * ids.filter(id=>yIds.includes(id)).length; } // 어제 1순위 옷 연속 방지
+    recent.forEach(h=>{ const hIds = h.key.split('-').map(Number); s -= 0.2 * ids.filter(id=>hIds.includes(id)).length; });
+    // (6) 피드백 반영
+    if(state.history.some(h=>h.fb==='dislike' && h.key===key)){ s -= 8; flags.push('disliked'); }
+    state.history.filter(h=>h.fb==='like').forEach(h=>{ const hIds = h.key.split('-').map(Number); s += 0.3 * ids.filter(id=>hIds.includes(id)).length; });
+    return {score:s, flags, key, color:ci, avgF};
+  }
+
+  function outfitsFor(){
+    const tops = closet.filter(i=>i.category==='상의');
+    const bottoms = closet.filter(i=>i.category==='하의');
+    const outers = closet.filter(i=>i.category==='아우터');
+    if(tops.length===0 || bottoms.length===0) return [];
+    const w = state.weather;
+    if(w.temp===null) return []; // 날씨를 아직 못 가져왔으면 추천을 만들지 않음
+    const oc = needsOuter(w);
+    const ctx = {w};
+    const outerOptions = (oc.need && outers.length) ? outers : [null];
+    const cands = [];
+    tops.forEach(top=>bottoms.forEach(bottom=>outerOptions.forEach(outer=>{
+      const r = scoreCombo(top, bottom, outer, ctx);
+      cands.push({top, bottom, outer, score:r.score, flags:r.flags, key:r.key, color:r.color, avgF:r.avgF});
+    })));
+    cands.sort((a,b)=> b.score-a.score || a.key.localeCompare(b.key));
+    // 상위 3개 선택: 서로 다른 상의를 우선 (같은 옷만 바꿔 3개가 되지 않도록)
+    const picked = [];
+    const floor = cands[0].score - 3;   // 1순위와 점수 차가 너무 큰(=날씨에 안 맞는) 조합은 '다양성' 때문에 끼워 넣지 않음
+    cands.forEach(c=>{ if(picked.length<3 && c.score>=floor && !picked.some(p=>p.top.id===c.top.id)) picked.push(c); });
+    cands.forEach(c=>{ if(picked.length<3 && !picked.includes(c)) picked.push(c); });
+    picked.sort((a,b)=> b.score-a.score);
+    // 설명 칩 만들기
+    const diffNote = (w.maxTemp!=null && w.minTemp!=null) ? `${w.minTemp}~${w.maxTemp}℃` : '';
+    return picked.map(c=>{
+      const why = [];
+      const t = w.temp;
+      if(t>=23 && c.top.subtype==='반팔') why.push({text:`${t}℃ · 반팔이 시원해요`, kind:'temp'});
+      else if(t<=17 && c.top.subtype==='긴팔') why.push({text:`${t}℃ · 긴팔이 좋아요`, kind:'temp'});
+      else why.push({text:`${t}℃ · ${c.top.subtype||c.top.name}`, kind:'temp'});
+      if(oc.need && !c.outer) why.push({text:'겉옷이 필요한데 옷장에 없어요', warn:true});
+      else why.push({text: oc.diff ? oc.why : oc.why + (c.outer ? ` (${c.outer.name})` : '')});
+      if(isRainy(w) && w.rainHours && w.rainHours.length) why.push({text:`☔ ${w.rainHours.join('·')}시 비 예보`});
+      if(state.schedule) why.push({text:`${state.schedule} 일정 · ${SCHEDULE_LABEL[state.schedule]||'평상시'}`});
+      else why.push({text:'일정 없음 · 평상시 기준'});
+      why.push({text:c.color.label, warn:c.color.excluded, kind:'color'});
+      if(c.flags.includes('repeat')) why.push({text:'최근 3일 안에 추천한 코디 (대안이 부족해요)', warn:true});
+      else if(recentHistory().length) why.push({text:'최근 3일과 다른 코디'});
+      if(c.flags.includes('disliked')) why.push({text:'이전에 별로라고 한 코디', warn:true});
+      return {top:c.top, bottom:c.bottom, outer:c.outer, score:c.score, key:c.key, why, diffNote};
+    });
+  }
+
+  function screenChrome({scode, title, showBack, backTo, body, activeTab}){
+    const back = showBack ? `<button class="back" onclick="App.nav('${backTo}')"><svg><use href="#i-back"/></svg></button>` : '';
+    const tabbar = activeTab ? `
+      <div class="tabbar">
+        <button class="${activeTab==='home'?'active':''}" onclick="App.nav('home')"><svg><use href="#i-home"/></svg>홈</button>
+        <button class="${activeTab==='closet'?'active':''}" onclick="App.nav('closet')"><svg><use href="#i-shirt"/></svg>옷장</button>
+        <button class="${activeTab==='settings'?'active':''}" onclick="App.nav('settings')"><svg><use href="#i-settings"/></svg>설정</button>
+      </div>` : '';
+    return `
+      <div class="topbar">
+        ${back}
+        <div class="titles"><span class="scode">${scode}</span><h1>${title}</h1></div>
+      </div>
+      <div class="screen">${body}</div>
+      ${tabbar}
+    `;
+  }
+
+  function renderHome(){
+    const w = state.weather;
+    const outfits = outfitsFor();
+    let weatherCardInner;
+    const regionTag = `<div class="region"><svg><use href="#i-map"/></svg>${esc(state.region)}</div>`;
+    if(w.status==='loading' && w.temp===null){
+      weatherCardInner = `
+        <div>${regionTag}<div class="temp">불러오는 중…</div><div class="desc">${state.region} 날씨를 확인하고 있어요</div></div>
+      `;
+    } else if(w.status==='error'){
+      weatherCardInner = `
+        <div>${regionTag}<div class="temp">날씨 오류</div><div class="desc">최신 날씨를 가져오지 못했어요 · 설정에서 다시 시도해주세요</div></div>
+      `;
+    } else {
+      weatherCardInner = `
+        <div>
+          ${regionTag}
+          <div class="temp">${w.temp}℃ · ${w.cond}${w.isStale? ' <span style=\"font-size:11px; font-weight:700; opacity:.8;\">(이전 값)</span>' : ''}</div>
+          <div class="desc">최저 ${w.minTemp}℃ · 최고 ${w.maxTemp}℃</div>
+          ${w.rainHours && w.rainHours.length ? `<div class="rain-hours">${w.rainHours.map(h=>`<span class="rain-chip">${h}시 ☔</span>`).join('')}</div>` : ''}
+        </div>
+      `;
+    }
+    let body = `
+      <div class="weather-card">
+        ${weatherCardInner}
+      </div>
+      <div class="schedule-strip">
+        <div>오늘 일정 <b>${state.schedule ? esc(state.schedule) : '없음'}</b></div>
+        <button onclick="App.nav('schedule')">바꾸기</button>
+      </div>
+      <h2 class="section">오늘의 추천 코디</h2>
+    `;
+    if(w.temp===null){
+      body += `
+        <div class="empty-state card">
+          <div class="icon-circle lg"><svg><use href="#${w.status==='error'?'i-alert':'i-weather'}"/></svg></div>
+          <p>${w.status==='error' ? '날씨 정보를 가져오지 못해서 아직 추천을 만들 수 없어요.<br>설정 화면에서 지역·날씨를 다시 불러와주세요.' : '날씨를 불러오는 중이에요. 잠시만 기다려주세요.'}</p>
+          ${w.status==='error' ? `<button class="btn btn-primary" style="width:auto; padding:0 18px;" onclick="App.nav('settings')"><svg><use href="#i-settings"/></svg>설정으로 가기</button>` : ''}
+        </div>`;
+    } else if(outfits.length===0){
+      body += `
+        <div class="empty-state card">
+          <div class="icon-circle lg"><svg><use href="#i-alert"/></svg></div>
+          <p>등록된 옷이 부족해서 코디를 만들 수 없어요.<br>상의·하의를 각각 하나 이상 등록해주세요.</p>
+          <button class="btn btn-primary" style="width:auto; padding:0 18px;" onclick="App.nav('closet')"><svg><use href="#i-plus"/></svg>옷 등록하러 가기</button>
+        </div>`;
+    } else {
+      outfits.forEach((o, idx)=>{
+        const fb = state.feedback[o.key];
+        body += `
+          <div class="outfit-card">
+            <div class="outfit-thumbs">
+              ${thumb('thumb', o.top)}
+              ${thumb('thumb', o.bottom)}
+              ${o.outer ? thumb('thumb', o.outer) : ''}
+            </div>
+            <div class="outfit-caption">${idx+1}순위 · ${esc(o.top.name)} + ${esc(o.bottom.name)}${o.outer? ' + '+esc(o.outer.name) : ''}</div>
+            <div class="why-chips">${o.why.filter(c=>!(c.kind==='temp' || (c.kind==='color' && !c.warn))).slice(0,4).map(c=>`<span class="why-chip${c.warn?' warn':''}">${esc(c.text)}</span>`).join('')}</div>
+            <div class="outfit-actions">
+              ${fb ? `
+                <div class="reaction-thanks"><svg><use href="#i-check"/></svg>소중한 의견 감사합니다.</div>
+              ` : `
+                <button class="reaction-btn" onclick="App.react('${o.key}','like')"><svg><use href="#i-heart"/></svg>마음에 들어요</button>
+                <button class="reaction-btn" onclick="App.react('${o.key}','dislike')"><svg><use href="#i-x"/></svg>별로예요</button>
+              `}
+            </div>
+            <div style="margin-top:10px;">
+              <button class="btn btn-secondary" onclick="App.nav('outfit', {idx:${idx}})">자세히 보기</button>
+            </div>
+          </div>`;
+      });
+      body += `
+        <h2 class="section">데모 도구</h2>
+        <div class="day-note">지금은 <b>${state.day}일차</b> · 지난 기록 ${state.history.length}건 (최근 3일 안에 추천한 코디는 다시 나오지 않아요)</div>
+        <button class="btn btn-secondary" onclick="App.nextDay()"><svg><use href="#i-refresh"/></svg>하루 뒤로 넘기기</button>
+        ${state.day>1 ? `<button class="btn btn-secondary" style="margin-top:8px;" onclick="App.resetHistory()">이력 초기화</button>` : ''}
+      `;
+    }
+    return screenChrome({scode:'S-01', title:'오늘의 추천', body, activeTab:'home'});
+  }
+
+  function renderCloset(){
+    const cats = ['전체','상의','하의','아우터','신발'];
+    const active = state.closetFilter || '전체';
+    let body = `
+      <div class="filter-row">
+        ${cats.map(c=>`<span class="chip ${c===active?'selected':''}" onclick="App.setFilter('${c}')">${c}</span>`).join('')}
+      </div>
+      <button class="btn btn-primary" style="margin-bottom:14px;" onclick="App.nav('item-new')"><svg><use href="#i-plus"/></svg>옷 추가</button>
+    `;
+    const items = closet.filter(i=> active==='전체' || i.category===active);
+    if(closet.length===0){
+      body += `
+        <div class="empty-state card">
+          <div class="icon-circle lg"><svg><use href="#i-shirt"/></svg></div>
+          <p>아직 등록한 옷이 없어요.</p>
+          <button class="btn btn-primary" style="width:auto; padding:0 18px;" onclick="App.nav('item-new')">옷 등록하러 가기</button>
+        </div>`;
+    } else if(items.length===0){
+      body += `<div class="empty-state"><p>'${active}' 카테고리에 등록된 옷이 없어요.</p></div>`;
+    } else {
+      body += `<div class="closet-grid">`;
+      items.forEach(it=>{
+        body += `
+          <div class="item-card" onclick="App.nav('item-edit',{id:${it.id}})">
+            ${thumb('item-thumb', it)}
+            <div class="item-name">${esc(it.name)}</div>
+            <div class="item-meta">${it.category}${it.subtype? ' · '+it.subtype : ''} · ${it.color}</div>
+          </div>`;
+      });
+      body += `</div>`;
+    }
+    body += `
+      <h2 class="section">데모 도구</h2>
+      <div class="btn-row">
+        <button class="btn btn-danger" onclick="App.clearCloset()"><svg><use href="#i-trash"/></svg>옷장 비우기</button>
+        <button class="btn btn-secondary" onclick="App.restoreCloset()"><svg><use href="#i-refresh"/></svg>샘플로 복원</button>
+      </div>
+      <small class="hint">※ 빈 옷장 화면(S-02 예외)과 옷 부족 화면(S-01 예외)을 확인할 수 있는 데모 버튼입니다.</small>
+    `;
+    return screenChrome({scode:'S-02', title:'옷장 목록', body, activeTab:'closet'});
+  }
+
+  function fieldChips(name, options, value){
+    return `<div class="chip-row">` + options.map(o=>
+      `<span class="chip ${o===value?'selected':''}" onclick="App.setDraft('${name}','${o}')">${o}</span>`
+    ).join('') + `</div>`;
+  }
+
+  function renderItemForm(isNew){
+    const item = isNew ? state.draft : (state.draft || closet.find(i=>i.id===state.editingId));
+    const title = isNew ? '옷 등록' : '옷 수정';
+    let body = `
+      <div class="photo-box ${item.hasPhoto?'filled':''}" style="${item.hasPhoto?`background:${COLORS[item.color]||'#8a8f9c'}`:''}" onclick="App.togglePhoto()">
+        <svg><use href="#${item.hasPhoto?'i-shirt':'i-camera'}"/></svg>
+      </div>
+      <div style="text-align:center; margin-bottom:6px;">
+        <button class="btn-text" onclick="App.togglePhoto()">${item.hasPhoto? '사진 변경':'사진 추가'}</button>
+      </div>
+      ${state.formError ? `<div class="form-error"><svg><use href="#i-alert"/></svg>${state.formError}</div>` : ''}
+
+      <div class="field-label">카테고리</div>
+      ${fieldChips('category', ['상의','하의','아우터','신발'], item.category)}
+      ${item.category==='상의' ? `
+        <div class="field-label">상의 종류</div>
+        ${fieldChips('subtype', ['반팔','긴팔'], item.subtype)}
+      ` : ''}
+      ${item.category==='하의' ? `
+        <div class="field-label">하의 종류</div>
+        ${fieldChips('subtype', ['반바지','긴바지'], item.subtype)}
+      ` : ''}
+      <div class="field-label">색상</div>
+      ${fieldChips('color', Object.keys(COLORS), item.color)}
+      <div class="field-label">두께감</div>
+      ${fieldChips('thickness', ['얇음','보통','두꺼움'], item.thickness)}
+      <div class="field-label">포멀도</div>
+      ${fieldChips('formality', ['캐주얼','보통','포멀'], item.formality)}
+
+      <div style="margin-top:20px;" class="btn-row">
+        ${!isNew ? `<button class="btn btn-danger" onclick="App.deleteItem()"><svg><use href="#i-trash"/></svg>삭제</button>` : ''}
+        <button class="btn btn-primary" onclick="App.saveItem(${isNew})"><svg><use href="#i-check"/></svg>저장</button>
+      </div>
+    `;
+    return screenChrome({scode:'S-03', title, showBack:true, backTo:'closet', body});
+  }
+
+  function renderSchedule(){
+    const opts = ['학교','약속','운동','재택','없음'];
+    const cur = state.draftSchedule !== undefined ? state.draftSchedule : state.schedule;
+    let body = `
+      <div class="field-label">오늘 일정 성격을 골라주세요</div>
+      <div class="chip-row">
+        ${opts.map(o=>`<span class="chip ${ (o==='없음'? !cur : o===cur) ?'selected':''}" onclick="App.pickSchedule('${o}')">${o}</span>`).join('')}
+      </div>
+      <p style="font-size:12.5px; color:var(--ink-soft); margin-top:14px;">일정을 입력하면 상황에 더 잘 맞는 옷을 추천해드려요. 아무것도 고르지 않으면 '일정 없음'으로 처리돼요.</p>
+      <button class="btn btn-primary" style="margin-top:16px;" onclick="App.applySchedule()"><svg><use href="#i-check"/></svg>적용</button>
+    `;
+    return screenChrome({scode:'S-04', title:'오늘 일정 입력', showBack:true, backTo:'home', body});
+  }
+
+  function renderOutfitDetail(){
+    const outfits = outfitsFor();
+    const o = outfits[state.outfitIndex] || outfits[0];
+    const w = state.weather;
+    const fb = o ? state.feedback[o.key] : null;
+    let body = '';
+    if(!o){
+      body = `<div class="empty-state"><p>표시할 코디가 없어요.</p></div>`;
+    } else {
+      body = `
+        <div class="detail-thumbs">
+          ${thumb('detail-thumb', o.top)}
+          ${thumb('detail-thumb', o.bottom)}
+          ${o.outer ? thumb('detail-thumb', o.outer) : ''}
+        </div>
+        <div class="reason-box">
+          <svg><use href="#i-weather"/></svg>
+          <div>${w.cond} ${w.temp}℃${o.diffNote ? ` (오늘 ${o.diffNote})` : ''}, 오늘 일정 '${esc(state.schedule||'없음')}'을(를) 반영한 추천이에요. ${weatherTip(w.temp, w.cond)}.</div>
+        </div>
+        <div class="why-chips">${o.why.map(c=>`<span class="why-chip${c.warn?' warn':''}">${esc(c.text)}</span>`).join('')}</div>
+        <div class="score-note">${state.outfitIndex+1}순위 · 추천 점수 ${o.score.toFixed(1)} (날씨·일정·색상·최근 이력을 합산한 값)</div>
+        <div class="outfit-actions">
+          ${fb ? `
+            <div class="reaction-thanks"><svg><use href="#i-check"/></svg>소중한 의견 감사합니다.</div>
+          ` : `
+            <button class="reaction-btn" onclick="App.react('${o.key}','like')"><svg><use href="#i-heart"/></svg>마음에 들어요</button>
+            <button class="reaction-btn" onclick="App.react('${o.key}','dislike')"><svg><use href="#i-x"/></svg>별로예요</button>
+          `}
+        </div>
+        <button class="btn btn-secondary" style="margin-top:12px;" onclick="App.nextOutfit()"><svg><use href="#i-refresh"/></svg>다른 조합 보기</button>
+      `;
+      if(state.saveFailShown){
+        body += `
+          <div class="form-error" style="margin-top:14px;">
+            <svg><use href="#i-alert"/></svg>피드백 저장에 실패했어요, 다시 시도해주세요.
+          </div>
+          <button class="btn btn-primary" onclick="App.retrySave()">다시 시도</button>
+        `;
+      }
+      body += `
+        <h2 class="section">데모 도구</h2>
+        <button class="btn btn-secondary" onclick="App.armSaveFail()"><svg><use href="#i-alert"/></svg>피드백 저장 실패 시나리오 보기</button>
+      `;
+    }
+    return screenChrome({scode:'S-05', title:'코디 상세', showBack:true, backTo:'home', body});
+  }
+
+  function renderSettings(){
+    let body = `
+      <h2 class="section">계정</h2>
+      <div class="card">
+        <div class="setting-row"><div class="label"><svg style="width:18px;height:18px;"><use href="#i-user"/></svg>${'20255347@s.scnu.ac.kr'}</div></div>
+      </div>
+      <h2 class="section">개인 정보</h2>
+      <div class="card">
+        <div class="setting-row" style="display:block;">
+          <div class="label" style="margin-bottom:8px;"><svg style="width:18px;height:18px;"><use href="#i-user"/></svg>성별</div>
+          <div class="chip-row">
+            ${['여성','남성','선택 안함'].map(g=>`<span class="chip ${g===(state.gender||'선택 안함')?'selected':''}" onclick="App.setGender('${g}')">${g}</span>`).join('')}
+          </div>
+        </div>
+      </div>
+      <h2 class="section">날씨 기준 지역</h2>
+      <div class="card">
+        <div class="setting-row" style="display:block;">
+          <div class="label" style="margin-bottom:8px;"><svg style="width:18px;height:18px;"><use href="#i-map"/></svg>지역 선택</div>
+          <div class="chip-row">
+            ${REGIONS.map(r=>`<span class="chip ${r.name===state.region?'selected':''}" onclick="App.setRegion('${r.name}')">${r.name}</span>`).join('')}
+          </div>
+        </div>
+        <div class="setting-row" style="margin-top:6px;">
+          <div class="label"><svg style="width:18px;height:18px;"><use href="#i-weather"/></svg>${state.region} 날씨</div>
+          <button class="btn-text" onclick="App.fetchWeather()">${state.weather.status==='loading' ? '불러오는 중…' : '새로고침'}</button>
+        </div>
+        ${state.weather.status!=='error' && state.weather.temp!==null ? `
+          <div class="badge success" style="margin-top:2px;">
+            <svg><use href="#i-check"/></svg>실시간 ${state.weather.temp}℃ · ${state.weather.cond} (${fmtTime(state.weather.fetchedAt)} 기준${state.weather.isStale? ', 새로고침 실패로 이전 값' : ''})
+          </div>
+        ` : ''}
+        ${state.weather.status==='error' ? `
+          <div class="form-error" style="margin-top:10px;"><svg><use href="#i-alert"/></svg>최신 날씨를 가져오지 못했어요. 잠시 후 다시 시도해주세요.</div>
+        ` : ''}
+        ${state.weather.status==='idle' ? `
+          <p style="font-size:12px; color:var(--ink-soft); margin:10px 0 0;">실시간 날씨 API(Open-Meteo)로 ${state.region}의 현재 날씨를 가져와요.</p>
+        ` : ''}
+      </div>
+      <h2 class="section">알림</h2>
+      <div class="card">
+        <div class="setting-row">
+          <div class="label"><svg style="width:18px;height:18px;"><use href="#i-bell"/></svg>아침 추천 알림</div>
+          <div class="switch ${state.notif?'on':''}" onclick="App.toggleNotif()"><div class="knob"></div></div>
+        </div>
+      </div>
+      <button class="btn btn-danger" style="margin-top:18px;"><svg><use href="#i-logout"/></svg>로그아웃</button>
+    `;
+    return screenChrome({scode:'S-06', title:'설정', body, activeTab:'settings'});
+  }
+
+  function render(){
+    const root = document.getElementById('screen-root');
+    let html;
+    switch(state.route){
+      case 'home': html = renderHome(); break;
+      case 'closet': html = renderCloset(); break;
+      case 'item-new': html = renderItemForm(true); break;
+      case 'item-edit': html = renderItemForm(false); break;
+      case 'schedule': html = renderSchedule(); break;
+      case 'outfit': html = renderOutfitDetail(); break;
+      case 'settings': html = renderSettings(); break;
+      default: html = renderHome();
+    }
+    root.innerHTML = html;
+    root.scrollTop = 0;
+  }
+
+  window.App = {
+    nav(route, params){
+      params = params || {};
+      state.formError = null;
+      if(route==='item-new'){ state.draft = {hasPhoto:false, category:'상의', subtype:'반팔', color:'화이트', thickness:'보통', formality:'캐주얼'}; }
+      if(route==='item-edit'){ state.editingId = params.id; state.draft = Object.assign({}, closet.find(i=>i.id===params.id)); }
+      if(route==='outfit'){ state.outfitIndex = params.idx || 0; state.saveFailShown = false; }
+      if(route==='schedule'){ state.draftSchedule = state.schedule; }
+      state.route = route;
+      render();
+    },
+    setFilter(c){ state.closetFilter = c; render(); },
+    setDraft(field, val){
+      state.draft[field] = val;
+      if(field==='category'){
+        if(val==='상의') state.draft.subtype = '반팔';
+        else if(val==='하의') state.draft.subtype = '반바지';
+        else state.draft.subtype = undefined;
+      }
+      render();
+    },
+    togglePhoto(){ state.draft.hasPhoto = !state.draft.hasPhoto; render(); },
+    saveItem(isNew){
+      const d = state.draft;
+      if(!d.hasPhoto){ state.formError = '옷 사진을 추가해주세요.'; render(); return; }
+      if(!d.category){ state.formError = '카테고리를 선택해주세요.'; render(); return; }
+      if(isNew){
+        d.id = nextId++;
+        d.name = (d.subtype || d.category) + ' (' + d.color + ')';
+        closet.push(d);
+      } else {
+        const idx = closet.findIndex(i=>i.id===state.editingId);
+        d.name = (d.subtype || d.category) + ' (' + d.color + ')';
+        closet[idx] = d;
+      }
+      state.draft = null; state.formError = null;
+      this.nav('closet');
+    },
+    deleteItem(){
+      closet = closet.filter(i=>i.id!==state.editingId);
+      state.draft = null;
+      this.nav('closet');
+    },
+    clearCloset(){ closet = []; render(); },
+    restoreCloset(){ closet = sampleCloset(); nextId = 21; render(); },
+    pickSchedule(o){ state.draftSchedule = (o==='없음') ? null : o; render(); },
+    applySchedule(){ state.schedule = state.draftSchedule; this.nav('home'); },
+    react(key, type){
+      if(state.feedback[key]) return; // 이미 반응을 남긴 코디는 다시 바꿀 수 없음
+      state.feedback[key] = type;
+      render();
+    },
+    nextDay(){
+      // 오늘 보여준 추천(1~3순위)과 반응을 이력에 남기고 하루를 넘김
+      outfitsFor().forEach((o, rank)=>{
+        state.history.push({day:state.day, key:o.key, rank, fb:state.feedback[o.key]||null});
+      });
+      state.day += 1;
+      state.feedback = {};
+      state.outfitIndex = 0;
+      render();
+    },
+    resetHistory(){ state.history = []; state.day = 1; state.feedback = {}; state.outfitIndex = 0; render(); },
+    nextOutfit(){
+      const outfits = outfitsFor();
+      state.outfitIndex = (state.outfitIndex+1) % Math.max(outfits.length,1);
+      state.saveFailShown = false;
+      render();
+    },
+    armSaveFail(){ state.saveFailShown = true; render(); },
+    retrySave(){ state.saveFailShown = false; render(); },
+    async fetchWeather(){
+      state.weather.status = 'loading';
+      render();
+      try{
+        const r = currentRegion();
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${r.lat}&longitude=${r.lon}`
+          + `&current_weather=true&hourly=precipitation_probability,weathercode`
+          + `&daily=temperature_2m_max,temperature_2m_min&timezone=Asia%2FSeoul&forecast_days=1`;
+        const res = await fetch(url);
+        if(!res.ok) throw new Error('bad-status');
+        const data = await res.json();
+        const cw = data.current_weather;
+        state.weather = {
+          status:'ok',
+          temp: Math.round(cw.temperature),
+          cond: weatherLabel(cw.weathercode),
+          code: cw.weathercode,
+          fetchedAt: new Date(),
+          isStale:false,
+          minTemp: (data.daily && data.daily.temperature_2m_min) ? Math.round(data.daily.temperature_2m_min[0]) : null,
+          maxTemp: (data.daily && data.daily.temperature_2m_max) ? Math.round(data.daily.temperature_2m_max[0]) : null,
+          rainHours: rainHoursFrom(data.hourly),
+        };
+      } catch(e){
+        if(state.weather.temp!==null){
+          // FR-03 예외: 최근에 성공적으로 가져온 값이 있으면 그 값을 그대로 쓰고 '오래된 값'으로 표시
+          state.weather.status = 'ok';
+          state.weather.isStale = true;
+        } else {
+          state.weather.status = 'error';
+        }
+      }
+      render();
+    },
+    setRegion(name){
+      state.region = name;
+      state.weather = { status:'idle', temp:null, cond:null, code:null, fetchedAt:null, isStale:false };
+      render();
+      this.fetchWeather();
+    },
+    setGender(g){ state.gender = (g==='선택 안함') ? null : g; render(); },
+    toggleNotif(){ state.notif = !state.notif; render(); },
+    toggleTheme(){
+      state.theme = state.theme==='light' ? 'dark' : 'light';
+      document.body.setAttribute('data-theme', state.theme);
+      document.getElementById('theme-icon').innerHTML = `<use href="#${state.theme==='light'?'i-moon':'i-sun'}"/>`;
+      document.getElementById('theme-label').textContent = state.theme==='light' ? '다크 모드로 보기' : '라이트 모드로 보기';
+    }
+  };
+
+  render();
+  window.App.fetchWeather();
+})();
+</script>
+</body>
+</html>
